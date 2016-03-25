@@ -1,4 +1,4 @@
-TO BUILD
+# TO BUILD
 
 brew install haskell-stack
 git clone git@github.com:pwestling/hmonit.git
@@ -8,7 +8,8 @@ stack build
 stack exec hmonit-exe <config file>
 
 
-CONFIG FORMAT
+# CONFIG FORMAT
+
     {
     "ssh" : {
         "hosts" : [
