@@ -75,17 +75,26 @@ getResult :: Result a -> IO ()
 getResult (Error r) = print r
 getResult (Success r) = return ()
 
-
+getLink :: Address -> String
+getLink (Address link _) = link
 
 relink :: Address -> String -> String
-relink (Address a h) page = sub page "href='(.*?)'" ("href='" ++ h ++ "/$1'")
+relink (Address a h) page = sub page "href='(.*?)'" ("href='host/" ++ h ++ "/$1'")
 
-getA :: Address -> IO String
-getA add@(Address a h) = do
+getA :: String -> IO String
+getA link = do
   let options = defaults & auth ?~ basicAuth "admin" "monit"
-  rsp <- getWith options a
-  let responseString = relink add $ show $ rsp ^. responseBody
+  rsp <- getWith options link
+  let responseString =  show $ rsp ^. responseBody
   return responseString
+
+getPlain :: Address -> IO String
+getPlain (Address link h) = getA link
+
+getRelinked :: Address -> IO String
+getRelinked a@(Address link host) = do
+  page <- getA link
+  return $ relink a page
 
 sysRegex :: String
 sysRegex = "(<tr>.*?System.*?</tr>)(.*?)(</table>)"
@@ -147,19 +156,19 @@ addSystemHeader :: String -> String
 addSystemHeader page = sub page "(<tr>.*?Process.*?</th>)</tr>" "$1<th align='right'>Host</th></tr>"
 
 rows = "<tr.*?>.*?</tr>"
-linkDest = "host/.*?/(.*?)'"
+linkDest = "<a.*?>(.*?)</a>"
 
 sortRowsByLink :: String -> String
 sortRowsByLink tableBlob = concatStrings $ sortOn (matchGroup linkDest) $ allMatches rows tableBlob
 
 createWebPage :: [Address] -> IO String
 createWebPage as = do
-  pageHTMLSWithErrors <- mapM getA as
+  pageHTMLSWithErrors <- mapM getRelinked as
   let pageStrings = pageHTMLSWithErrors
   let baseHTML = head pageStrings
   let subTables = zipWith addSystemColumn as $ map grabServiceEntries pageStrings
-  let serviceEntries = concatStrings subTables
-  let systemEntries =  concatStrings $ map grabSystemEntries pageStrings
+  let serviceEntries = sortRowsByLink $ concatStrings subTables
+  let systemEntries =  sortRowsByLink $ concatStrings $ map grabSystemEntries pageStrings
   let inter = sub baseHTML sysRegex ("$1" ++ systemEntries ++ "$3")
   let subHTML =  addSystemHeader $ sub inter serviceRegex ("$1" ++ serviceEntries ++ "$3")
   return subHTML
@@ -175,14 +184,16 @@ hostroute as  = do
   host <- Snap.getParam "host"
   dest <- Snap.getParam "dest"
   let realhost = C.unpack $ fromJust host
+  let realdest = maybe "" C.unpack dest
   let address = findByHost realhost as
-  fmap read ( liftIO (getA address)) >>= Snap.writeBS
+  fmap read (liftIO (getA (getLink address ++ "/" ++ realdest))) >>= Snap.writeBS
 
 toproute as = fmap read (liftIO $ createWebPage as) >>= Snap.writeBS
 
 server :: [Address] -> Snap.Snap ()
-server as =  toproute as
-  --  <|> Snap.route [("host/:host/:dest", hostroute as)]
+server as =  Snap.ifTop (toproute as)
+  <|> Snap.route [("host/:host", hostroute as),
+                  ("host/:host/:dest", hostroute as)]
 
 handler :: ThreadId -> [ProcessHandle] -> IO ()
 handler tid handles = do
