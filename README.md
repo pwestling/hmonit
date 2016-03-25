@@ -1,4 +1,4 @@
-# TO BUILD
+# TO BUILD AND RUN
 
 Be warned, compiling for the first time will take a lot of time and processor power. Subsequent compilations will be much much faster.
 
@@ -10,6 +10,8 @@ stack setup
 stack build
 stack exec hmonit-exe <config file>
 ```
+
+Then open `localhost:8000` in your browser
 
 
 # CONFIG FORMAT
