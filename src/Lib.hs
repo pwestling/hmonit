@@ -82,20 +82,22 @@ relink (Address a h) page = sub page "href='(.*?)'" ("href='host/" ++ h ++ "/$1'
 -- relinkActions :: Address -> String -> String
 -- relinkActions (Address a h) page = sub page "action=([^<]*)" ("action=" ++ a ++"/$1")
 
-getA :: String -> IO String
-getA link = do
+unsafeGetA :: String -> IO String
+unsafeGetA link = do
   let options = defaults & auth ?~ basicAuth "admin" "monit"
   rsp <- getWith options link
-  let responseString =  show $ rsp ^. responseBody
+  let responseString =  show $ fromMaybe "" (rsp ^? responseBody)
   return responseString
 
-getPlain :: Address -> IO String
+getA link = E.catch (Just <$> unsafeGetA link) ((\e -> return Nothing) :: E.SomeException -> IO (Maybe String))
+
+getPlain :: Address -> IO (Maybe String)
 getPlain (Address link h) = getA link
 
-getRelinked :: Address -> IO String
+getRelinked :: Address -> IO (Maybe String)
 getRelinked a@(Address link host) = do
   page <- getA link
-  return $ relink a page
+  return $ relink a <$> page
 
 sysRegex :: String
 sysRegex = "(<tr>.*?System.*?</tr>)(.*?)(</table>)"
@@ -165,7 +167,7 @@ sortRowsByLink tableBlob = concatStrings $ sortOn (matchGroup linkDest) $ allMat
 createWebPage :: [Address] -> IO String
 createWebPage as = do
   pageHTMLSWithErrors <- mapM getRelinked as
-  let pageStrings = pageHTMLSWithErrors
+  let pageStrings = catMaybes pageHTMLSWithErrors
   let baseHTML = head pageStrings
   let subTables = zipWith addSystemColumn as $ map grabServiceEntries pageStrings
   let serviceEntries = sortRowsByLink $ concatStrings subTables
@@ -175,48 +177,50 @@ createWebPage as = do
   return subHTML
 
 findByHost :: String -> [Address] -> Address
-findByHost h [] = error $ "No host " ++ (show h)
+findByHost h [] = error $ "No host " ++ show h
 findByHost h (add@(Address link host) : as)
   | h == host = add
   | otherwise = findByHost h as
 
-hostroute :: [Address] -> Snap.Snap ()
-hostroute as  = do
+determineAddress :: [Address] -> Snap.Snap (Address, String, String)
+determineAddress as = do
   host <- Snap.getParam "host"
   dest <- Snap.getParam "dest"
   let realhost = C.unpack $ fromJust host
   let realdest = maybe "" C.unpack dest
   let address = findByHost realhost as
-  page <- liftIO  (getA (getLink address ++ "/" ++ realdest))
-  -- let finalPage = relinkActions address page
-  fmap read (return page) >>= Snap.writeBS
+  let link = getLink address ++ "/" ++ realdest
+  return (address, link, realdest)
+
+snapToPage :: Maybe String -> Snap.Snap ()
+snapToPage page = fmap read (return $ fromJust page) >>= Snap.writeBS
+
+hostroute :: [Address] -> Snap.Snap ()
+hostroute as  = do
+  (address, link, dest) <- determineAddress as
+  page <- liftIO (getA (getLink address ++ "/" ++ dest))
+  snapToPage page
+
+hostpostroute :: [Address] -> Snap.Snap ()
+hostpostroute as  = do
+  (address, link, dest) <- determineAddress as
+  postParams <- Snap.getPostParams
+  liftIO $ postA link (paramsToForm postParams)
+  page <- liftIO  (getA link)
+  snapToPage page
 
 paramToForm :: C.ByteString -> [C.ByteString] -> [FormParam] -> [FormParam]
 paramToForm k vs fs = newparams ++ fs where
   newparams = map ((:=) k) vs
 
 paramsToForm :: Snap.Params -> [FormParam]
-paramsToForm p = M.foldrWithKey paramToForm [] p
+paramsToForm = M.foldrWithKey paramToForm []
 
 postA :: String -> [FormParam] -> IO ()
 postA link params = do
   let options = defaults & auth ?~ basicAuth "admin" "monit"
   postWith options link params
   return ()
-
-hostpostroute :: [Address] -> Snap.Snap ()
-hostpostroute as  = do
-  host <- Snap.getParam "host"
-  dest <- Snap.getParam "dest"
-  let realhost = C.unpack $ fromJust host
-  let realdest = maybe "" C.unpack dest
-  let address = findByHost realhost as
-  let link = (getLink address ++ "/" ++ realdest)
-  postParams <- Snap.getPostParams
-  liftIO $ postA link (paramsToForm postParams)
-  page <- liftIO  (getA link)
-  -- let finalPage = relinkActions address page
-  fmap read (return page) >>= Snap.writeBS
 
 toproute as = fmap read (liftIO $ createWebPage as) >>= Snap.writeBS
 
@@ -228,7 +232,7 @@ server as =  Snap.ifTop (toproute as)
 
 handler :: ThreadId -> [ProcessHandle] -> IO ()
 handler tid handles = do
-  mapM terminateProcess handles
+  mapM_ terminateProcess handles
   putStrLn "Terminating tunnels"
   throwTo tid E.UserInterrupt
   return ()
