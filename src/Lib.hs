@@ -3,10 +3,7 @@
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-
-
 module Lib where
-
 
 import           Control.Applicative
 import           Control.Concurrent
@@ -30,7 +27,6 @@ import           System.Environment
 import           System.IO
 import           System.Posix.Signals
 import           System.Process
-import           System.Random
 import           Text.Regex.PCRE
 
 import qualified Data.ByteString.Char8     as C
