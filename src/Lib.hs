@@ -42,7 +42,7 @@ data SSHConfig = SSH{username :: String, hosts :: [SSHHost]} deriving (Show, Gen
 data Config =
   Config{ ssh :: Maybe SSHConfig } deriving (Show, Generic, FromJSON, ToJSON)
 
-data Address = Address String String
+data Address = Address String String deriving Show
 
 sshTunnelCmd :: Integer -> SSHHost -> String -> String
 sshTunnelCmd localport (SSHHost host remoteport) username = "ssh -M -N -L " ++ show localport ++ ":localhost:" ++ show remoteport ++ " " ++ username ++ "@" ++ host
@@ -147,7 +147,7 @@ addSystemHeader :: String -> String
 addSystemHeader page = sub page "(<tr>.*?Process.*?</th>)</tr>" "$1<th align='right'>Host</th></tr>"
 
 rows = "<tr.*?>.*?</tr>"
-linkDest = "127.0.0.1:[0-9]*/(.*?)'"
+linkDest = "host/.*?/(.*?)'"
 
 sortRowsByLink :: String -> String
 sortRowsByLink tableBlob = concatStrings $ sortOn (matchGroup linkDest) $ allMatches rows tableBlob
@@ -158,14 +158,14 @@ createWebPage as = do
   let pageStrings = pageHTMLSWithErrors
   let baseHTML = head pageStrings
   let subTables = zipWith addSystemColumn as $ map grabServiceEntries pageStrings
-  let serviceEntries = sortRowsByLink $ concatStrings subTables
-  let systemEntries = sortRowsByLink $ concatStrings $ map grabSystemEntries pageStrings
+  let serviceEntries = concatStrings subTables
+  let systemEntries =  concatStrings $ map grabSystemEntries pageStrings
   let inter = sub baseHTML sysRegex ("$1" ++ systemEntries ++ "$3")
   let subHTML =  addSystemHeader $ sub inter serviceRegex ("$1" ++ serviceEntries ++ "$3")
   return subHTML
 
 findByHost :: String -> [Address] -> Address
-findByHost _ [] = Address "localhost:8000" "nohost"
+findByHost h [] = error $ "No host " ++ (show h)
 findByHost h (add@(Address link host) : as)
   | h == host = add
   | otherwise = findByHost h as
@@ -178,11 +178,11 @@ hostroute as  = do
   let address = findByHost realhost as
   fmap read ( liftIO (getA address)) >>= Snap.writeBS
 
-toproute as = fmap read $ (liftIO $ createWebPage as) >>= Snap.writeBS
+toproute as = fmap read (liftIO $ createWebPage as) >>= Snap.writeBS
 
 server :: [Address] -> Snap.Snap ()
 server as =  toproute as
-  -- <|> Snap.route [("host/:host/:dest", hostroute as)]
+  --  <|> Snap.route [("host/:host/:dest", hostroute as)]
 
 handler :: ThreadId -> [ProcessHandle] -> IO ()
 handler tid handles = do
