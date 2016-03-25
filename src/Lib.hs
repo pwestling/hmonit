@@ -8,10 +8,12 @@
 module Lib where
 
 
+import           Control.Applicative
 import           Control.Concurrent
 import qualified Control.Exception         as E
 import           Control.Lens
 import           Control.Monad
+
 import           Control.Monad.IO.Class
 import           Data.Aeson
 import           Data.Either
@@ -22,17 +24,19 @@ import           GHC.Generics
 import           Network.Wreq
 
 import           Data.String.Utils
+import           Network.Socket
 import qualified Snap
 import           System.Environment
 import           System.IO
 import           System.Posix.Signals
 import           System.Process
+import           System.Random
 import           Text.Regex.PCRE
 
 import qualified Data.ByteString.Char8     as C
 import qualified Data.ByteString.Lazy.UTF8 as Utf8
 
-data SSHHost = SSHHost{host :: String, localport :: Integer, remoteport :: Integer} deriving (Show, Generic, FromJSON, ToJSON)
+data SSHHost = SSHHost{host :: String, remoteport :: Integer} deriving (Show, Generic, FromJSON, ToJSON)
 data SSHConfig = SSH{username :: String, hosts :: [SSHHost]} deriving (Show, Generic, FromJSON, ToJSON)
 
 data Config =
@@ -40,17 +44,25 @@ data Config =
 
 data Address = Address String String
 
-sshTunnelCmd :: SSHHost -> String -> String
-sshTunnelCmd (SSHHost host localport remoteport) username = "ssh -M -f -N -L " ++ show localport ++ ":localhost:" ++ show remoteport ++ " " ++ username ++ "@" ++ host
+sshTunnelCmd :: Integer -> SSHHost -> String -> String
+sshTunnelCmd localport (SSHHost host remoteport) username = "ssh -M -N -L " ++ show localport ++ ":localhost:" ++ show remoteport ++ " " ++ username ++ "@" ++ host
 
-sshAddress :: SSHHost -> Address
-sshAddress SSHHost{localport,host} = Address ("http://127.0.0.1:" ++ show localport) host
+sshAddress :: Integer -> SSHHost -> Address
+sshAddress localport SSHHost{host} = Address ("http://127.0.0.1:" ++ show localport) host
 
+randomPort :: IO Integer
+randomPort = do
+  sock <- socket AF_INET Stream defaultProtocol
+  bound <- bind sock (SockAddrInet aNY_PORT iNADDR_ANY)
+  port <- socketPort sock
+  close sock
+  return $ fromIntegral port
 
 connectToSSH :: String -> SSHHost -> IO (Address, ProcessHandle)
 connectToSSH username host = do
-  handle <- spawnCommand (sshTunnelCmd host username)
-  let address = sshAddress host
+  port <- randomPort
+  handle <- spawnCommand (sshTunnelCmd port host username)
+  let address = sshAddress port host
   return (address, handle)
 
 toAddresses :: Lib.Config -> IO ([Address],[ProcessHandle])
@@ -65,14 +77,14 @@ getResult (Success r) = return ()
 
 
 
-relink :: String -> String -> String
-relink a page = sub page "href='(.*?)'" ("href='" ++ a ++ "/$1'")
+relink :: Address -> String -> String
+relink (Address a h) page = sub page "href='(.*?)'" ("href='" ++ h ++ "/$1'")
 
 getA :: Address -> IO String
-getA (Address a h) = do
+getA add@(Address a h) = do
   let options = defaults & auth ?~ basicAuth "admin" "monit"
   rsp <- getWith options a
-  let responseString = relink a $ show $ rsp ^. responseBody
+  let responseString = relink add $ show $ rsp ^. responseBody
   return responseString
 
 sysRegex :: String
@@ -116,25 +128,61 @@ subMatch text (start,match,end,groups) pat replaceStr = start ++ replaceval ++ s
   replacements = replacementFunctions 1 groups
   replaceval = iterApply replacements replaceStr
 
+matchGroup :: String -> String -> String
+matchGroup regex text  = head groups where
+  (start,match,end,groups) = text =~ regex :: (String, String, String, [String])
+
+allMatches :: String -> String -> [String]
+allMatches _ "" = []
+allMatches regex text
+  | match == "" = []
+  | otherwise = match : allMatches regex end
+  where
+    (start,match,end,groups) = text =~ regex :: (String, String, String, [String])
+
 addSystemColumn :: Address -> String -> String
 addSystemColumn (Address _ host) tr = sub tr "</td></tr>" ("</td><td align='right' >" ++ host ++"</td></tr>")
 
 addSystemHeader :: String -> String
 addSystemHeader page = sub page "(<tr>.*?Process.*?</th>)</tr>" "$1<th align='right'>Host</th></tr>"
 
+rows = "<tr.*?>.*?</tr>"
+linkDest = "127.0.0.1:[0-9]*/(.*?)'"
+
+sortRowsByLink :: String -> String
+sortRowsByLink tableBlob = concatStrings $ sortOn (matchGroup linkDest) $ allMatches rows tableBlob
+
 createWebPage :: [Address] -> IO String
 createWebPage as = do
   pageHTMLSWithErrors <- mapM getA as
   let pageStrings = pageHTMLSWithErrors
   let baseHTML = head pageStrings
-  let serviceEntries = concatStrings $ sort $ zipWith addSystemColumn as $ map grabServiceEntries pageStrings
-  let systemEntries = concatStrings $ map grabSystemEntries pageStrings
+  let subTables = zipWith addSystemColumn as $ map grabServiceEntries pageStrings
+  let serviceEntries = sortRowsByLink $ concatStrings subTables
+  let systemEntries = sortRowsByLink $ concatStrings $ map grabSystemEntries pageStrings
   let inter = sub baseHTML sysRegex ("$1" ++ systemEntries ++ "$3")
   let subHTML =  addSystemHeader $ sub inter serviceRegex ("$1" ++ serviceEntries ++ "$3")
   return subHTML
 
+findByHost :: String -> [Address] -> Address
+findByHost _ [] = Address "localhost:8000" "nohost"
+findByHost h (add@(Address link host) : as)
+  | h == host = add
+  | otherwise = findByHost h as
+
+hostroute :: [Address] -> Snap.Snap ()
+hostroute as  = do
+  host <- Snap.getParam "host"
+  dest <- Snap.getParam "dest"
+  let realhost = C.unpack $ fromJust host
+  let address = findByHost realhost as
+  fmap read ( liftIO (getA address)) >>= Snap.writeBS
+
+toproute as = fmap read $ (liftIO $ createWebPage as) >>= Snap.writeBS
+
 server :: [Address] -> Snap.Snap ()
-server as =  fmap read (liftIO $ createWebPage as) >>= Snap.writeBS
+server as =  toproute as
+  -- <|> Snap.route [("host/:host/:dest", hostroute as)]
 
 handler :: ThreadId -> [ProcessHandle] -> IO ()
 handler tid handles = do
@@ -151,7 +199,7 @@ someFunc = do
   let Just config = decode $ Utf8.fromString configString :: Maybe Config
   addressAndHandles <- toAddresses config
   installHandler keyboardSignal (Catch (handler tid (snd addressAndHandles))) Nothing
-  threadDelay 10000000
+  threadDelay 5000000
   putStrLn "Ready"
   Snap.quickHttpServe $ server (fst addressAndHandles)
   return ()
