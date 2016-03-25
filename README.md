@@ -1,5 +1,7 @@
 # TO BUILD
 
+Be warned, compiling for the first time will take a lot of time and processor power. Subsequent compilations will be much much faster.
+
 ```
 brew install haskell-stack
 git clone git@github.com:pwestling/hmonit.git
