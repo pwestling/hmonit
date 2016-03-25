@@ -15,6 +15,7 @@ import           Control.Monad.IO.Class
 import           Data.Aeson
 import           Data.Either
 import           Data.List
+import qualified Data.Map                  as M
 import           Data.Maybe
 import qualified Data.Text                 as Text
 import           GHC.Generics
@@ -30,6 +31,7 @@ import           System.Process
 import           Text.Regex.PCRE
 
 import qualified Data.ByteString.Char8     as C
+
 import qualified Data.ByteString.Lazy.UTF8 as Utf8
 
 data SSHHost = SSHHost{host :: String, remoteport :: Integer} deriving (Show, Generic, FromJSON, ToJSON)
@@ -76,6 +78,9 @@ getLink (Address link _) = link
 
 relink :: Address -> String -> String
 relink (Address a h) page = sub page "href='(.*?)'" ("href='host/" ++ h ++ "/$1'")
+
+-- relinkActions :: Address -> String -> String
+-- relinkActions (Address a h) page = sub page "action=([^<]*)" ("action=" ++ a ++"/$1")
 
 getA :: String -> IO String
 getA link = do
@@ -182,13 +187,43 @@ hostroute as  = do
   let realhost = C.unpack $ fromJust host
   let realdest = maybe "" C.unpack dest
   let address = findByHost realhost as
-  fmap read (liftIO (getA (getLink address ++ "/" ++ realdest))) >>= Snap.writeBS
+  page <- liftIO  (getA (getLink address ++ "/" ++ realdest))
+  -- let finalPage = relinkActions address page
+  fmap read (return page) >>= Snap.writeBS
+
+paramToForm :: C.ByteString -> [C.ByteString] -> [FormParam] -> [FormParam]
+paramToForm k vs fs = newparams ++ fs where
+  newparams = map ((:=) k) vs
+
+paramsToForm :: Snap.Params -> [FormParam]
+paramsToForm p = M.foldrWithKey paramToForm [] p
+
+postA :: String -> [FormParam] -> IO ()
+postA link params = do
+  let options = defaults & auth ?~ basicAuth "admin" "monit"
+  postWith options link params
+  return ()
+
+hostpostroute :: [Address] -> Snap.Snap ()
+hostpostroute as  = do
+  host <- Snap.getParam "host"
+  dest <- Snap.getParam "dest"
+  let realhost = C.unpack $ fromJust host
+  let realdest = maybe "" C.unpack dest
+  let address = findByHost realhost as
+  let link = (getLink address ++ "/" ++ realdest)
+  postParams <- Snap.getPostParams
+  liftIO $ postA link (paramsToForm postParams)
+  page <- liftIO  (getA link)
+  -- let finalPage = relinkActions address page
+  fmap read (return page) >>= Snap.writeBS
 
 toproute as = fmap read (liftIO $ createWebPage as) >>= Snap.writeBS
 
 server :: [Address] -> Snap.Snap ()
 server as =  Snap.ifTop (toproute as)
   <|> Snap.route [("host/:host", hostroute as),
+                  ("host/:host/:dest", Snap.method Snap.POST (hostpostroute as)),
                   ("host/:host/:dest", hostroute as)]
 
 handler :: ThreadId -> [ProcessHandle] -> IO ()
