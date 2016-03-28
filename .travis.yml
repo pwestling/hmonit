@@ -1,70 +1,48 @@
-# Copy these contents into the root directory of your Github project in a file
-# named .travis.yml
-
-# Use new container infrastructure to enable caching
 sudo: false
-
-# Choose a lightweight base image; we provide our own build tools.
 language: c
-
-# Caching so the next build will be fast too.
 cache:
   directories:
   - $HOME/.ghc
   - $HOME/.cabal
   - $HOME/.stack
-
-# The different configurations we want to test. We have BUILD=cabal which uses
-# cabal-install, and BUILD=stack which uses Stack. More documentation on each
-# of those below.
-#
-# We set the compiler values here to tell Travis to use a different
-# cache file per set of arguments.
-#
-# If you need to have different apt packages for each combination in the
-# matrix, you can use a line such as:
-#     addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
 matrix:
   include:
-  # We grab the appropriate GHC and cabal-install versions from hvr's PPA. See:
-  # https://github.com/hvr/multi-ghc-travis
   - env: BUILD=cabal GHCVER=7.10.3 CABALVER=1.22
-    compiler: ": #GHC 7.10.3"
-    addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3], sources: [hvr-ghc]}}
-
-  # The Stack builds. We can pass in arbitrary Stack arguments via the ARGS
-  # variable, such as using --stack-yaml to point to a different file.
+    compiler: ': #GHC 7.10.3'
+    addons:
+      apt:
+        packages:
+        - cabal-install-1.22
+        - ghc-7.10.3
+        sources:
+        - hvr-ghc
   - env: BUILD=stack ARGS="--resolver lts-5"
-    compiler: ": #stack 7.10.3"
-    addons: {apt: {packages: [ghc-7.10.3], sources: [hvr-ghc]}}
-
-  # Nightly builds are allowed to fail
+    compiler: ': #stack 7.10.3'
+    addons:
+      apt:
+        packages:
+        - ghc-7.10.3
+        sources:
+        - hvr-ghc
   - env: BUILD=stack ARGS="--resolver nightly"
-    compiler: ": #stack nightly"
-    addons: {apt: {packages: [libgmp-dev]}}
-
-  # Build on OS X in addition to Linux
+    compiler: ': #stack nightly'
+    addons:
+      apt:
+        packages:
+        - libgmp-dev
   - env: BUILD=stack ARGS="--resolver lts-5"
-    compiler: ": #stack 7.10.3 osx"
+    compiler: ': #stack 7.10.3 osx'
     os: osx
-
   - env: BUILD=stack ARGS="--resolver nightly"
-    compiler: ": #stack nightly osx"
+    compiler: ': #stack nightly osx'
     os: osx
-
   allow_failures:
   - env: BUILD=cabal GHCVER=head  CABALVER=head
   - env: BUILD=stack ARGS="--resolver nightly"
-
 before_install:
-# Using compiler above sets CC to an invalid value, so unset it
 - unset CC
-
-# We want to always allow newer versions of packages when building on GHC HEAD
 - CABALARGS=""
 - if [ "x$GHCVER" = "xhead" ]; then CABALARGS=--allow-newer; fi
-
-# Download and unpack the stack executable
 - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.local/bin:$PATH
 - mkdir -p ~/.local/bin
 - |
@@ -74,9 +52,9 @@ before_install:
   else
     curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
   fi
-
 install:
-- echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
+- echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo
+  '?')]"
 - if [ -f configure.ac ]; then autoreconf -i; fi
 - |
   case "$BUILD" in
@@ -89,7 +67,6 @@ install:
       cabal install --only-dependencies --enable-tests --enable-benchmarks --force-reinstalls --ghc-options=-O0 --reorder-goals --max-backjumps=-1 $CABALARGS
       ;;
   esac
-
 script:
 - |
   case "$BUILD" in
@@ -107,3 +84,10 @@ script:
         (cd dist && cabal install --force-reinstalls "$SRC_TGZ")
       ;;
   esac
+deploy:
+  provider: releases
+  api_key:
+    secure: 21E7t77mBF8IKFDZ+7a7rc9uxQ5vYKKudsXFjQLamZu67f4F/NWBNxOkqT7j0fTC6FVitMRD7k1OG6LVHndGPiar39ejoJovgVqJhGN6bcPHGg/J32ou72ayFz73D2QfAHnhZKpZlr6m7NYtRsf9Eb+fHzywpZQhcHVIGeqdDqOgtqk3bNSVSnsDu59a6/7k58+Ru1uvIJ9F3RhKCDf8iizv31NKcgBzbTFlBZphmSapbRr2ROTZn2MSZufG7LA4r6QYOHho799LcyMWj94yapYy8j+Vp3EcDA8XPxapl8EPLQmFJqP3obunWkJ9dqVIRFzCPrSGmOMfjPQbb17Ag9YN2zubLtxc1SxZyH7e3j9tHxuSGws6qYIbfH4jxRPKexCUEIQ1wOZZj2vvyO0LIJFn9HNJhJyoNWX58gWzYLtq88W6ETnnDDsHGrAHGarkdb9bFmZq/+R5cZVC7f7GGTJb7KHXB7+GVmwx1oyjDgDnyXEKJYmxgKHimdOD+KdXm+IcWUbl7Q1W0BRCJNhpE++ONFic0xHusKbgLceISsPjqypGkm9sNMTdVNe+BZAgaSM4ixTG6SK+zdq/Tj+6ejG9odmyP57ii9JJmwx3V0/ZesQl3lea6lniMsBPuOQABtgauue4NpC2DsmussGNfpPtOThn4syBndhILHmdmjw=
+  file: .stack-work/dist/*/Cabal-1.22.5.0/build/hmonit-exe/hmonit-exe
+  on:
+    repo: pwestling/hmonit
