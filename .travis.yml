@@ -81,7 +81,7 @@ install:
 - |
   case "$BUILD" in
     stack)
-      stack --no-terminal --install-ghc $ARGS test --only-dependencies
+      stack --no-terminal --install-ghc $ARGS test --copy-bins --only-dependencies
       ;;
     cabal)
       cabal --version
@@ -94,7 +94,7 @@ script:
 - |
   case "$BUILD" in
     stack)
-      stack --no-terminal $ARGS test --haddock --no-haddock-deps
+      stack --no-terminal $ARGS test --copy-bins --haddock --no-haddock-deps
       ;;
     cabal)
       cabal configure --enable-tests --enable-benchmarks -v2 --ghc-options="-O0 -Werror"
@@ -107,3 +107,11 @@ script:
         (cd dist && cabal install --force-reinstalls "$SRC_TGZ")
       ;;
   esac
+
+deploy:
+  provider: releases
+  api_key:
+    secure: 21E7t77mBF8IKFDZ+7a7rc9uxQ5vYKKudsXFjQLamZu67f4F/NWBNxOkqT7j0fTC6FVitMRD7k1OG6LVHndGPiar39ejoJovgVqJhGN6bcPHGg/J32ou72ayFz73D2QfAHnhZKpZlr6m7NYtRsf9Eb+fHzywpZQhcHVIGeqdDqOgtqk3bNSVSnsDu59a6/7k58+Ru1uvIJ9F3RhKCDf8iizv31NKcgBzbTFlBZphmSapbRr2ROTZn2MSZufG7LA4r6QYOHho799LcyMWj94yapYy8j+Vp3EcDA8XPxapl8EPLQmFJqP3obunWkJ9dqVIRFzCPrSGmOMfjPQbb17Ag9YN2zubLtxc1SxZyH7e3j9tHxuSGws6qYIbfH4jxRPKexCUEIQ1wOZZj2vvyO0LIJFn9HNJhJyoNWX58gWzYLtq88W6ETnnDDsHGrAHGarkdb9bFmZq/+R5cZVC7f7GGTJb7KHXB7+GVmwx1oyjDgDnyXEKJYmxgKHimdOD+KdXm+IcWUbl7Q1W0BRCJNhpE++ONFic0xHusKbgLceISsPjqypGkm9sNMTdVNe+BZAgaSM4ixTG6SK+zdq/Tj+6ejG9odmyP57ii9JJmwx3V0/ZesQl3lea6lniMsBPuOQABtgauue4NpC2DsmussGNfpPtOThn4syBndhILHmdmjw=
+  file: $HOME/.local/bin/hmonit-exe
+  on:
+    repo: pwestling/hmonit
