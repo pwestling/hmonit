@@ -104,13 +104,13 @@ sysRegex = "(<tr>.*?System.*?</tr>)(.*?)(</table>)"
 serviceRegex :: String
 serviceRegex = "(<tr>.*?Process.*?</tr>)(.*?)(</table>)"
 
-grabEntries :: String -> String -> String
-grabEntries regex html = secondEl groups where
+grabEntries :: String -> String -> [String]
+grabEntries regex html = asRows $ secondEl groups where
   (a,b,c,groups) = html =~ regex :: (String, String, String, [String])
 
-grabSystemEntries :: String -> String
+grabSystemEntries :: String -> [String]
 grabSystemEntries = grabEntries sysRegex
-grabServiceEntries :: String -> String
+grabServiceEntries :: String -> [String]
 grabServiceEntries = grabEntries serviceRegex
 
 concatStrings :: [String] -> String
@@ -161,17 +161,35 @@ addSystemHeader page = sub page "(<tr>.*?Process.*?</th>)</tr>" "$1<th align='ri
 rows = "<tr.*?>.*?</tr>"
 linkDest = "<a.*?>(.*?)</a>"
 
-sortRowsByLink :: String -> String
-sortRowsByLink tableBlob = concatStrings $ sortOn (matchGroup linkDest) $ allMatches rows tableBlob
+asRows :: String -> [String]
+asRows = allMatches rows
+
+sortRowsByLink :: [String] -> [String]
+sortRowsByLink =  sortOn (matchGroup linkDest)
+
+recolorRow :: [String] -> [String]
+recolorRow = recolor True where
+  recolor _ [] = []
+  recolor True (r : rows) = sub r "<tr(.*?)class='.*?'(.*?)>" "<tr$1class='stripe'$2>" : recolor False rows
+  recolor False (r : rows)= sub r "<tr(.*?)class='.*?'(.*?)>" "<tr$1$2>" : recolor True rows
+
+appendEach :: [a] -> [[b]] -> [[(a,b)]]
+appendEach _ [] = []
+appendEach [] _ = []
+appendEach (a:as) (b:bs) = map (\x -> (a,x)) b : appendEach as bs
+
+extractRows :: (String -> [String]) -> [Address] -> [String] -> [(Address, String)]
+extractRows entryExtractor as pages = concat $ appendEach as $ map entryExtractor pages
 
 createWebPage :: [Address] -> IO String
 createWebPage as = do
   pageHTMLSWithErrors <- mapM getRelinked as
   let pageStrings = catMaybes pageHTMLSWithErrors
   let baseHTML = head pageStrings
-  let subTables = zipWith addSystemColumn as $ map grabServiceEntries pageStrings
-  let serviceEntries = sortRowsByLink $ concatStrings subTables
-  let systemEntries =  sortRowsByLink $ concatStrings $ map grabSystemEntries pageStrings
+  let serviceEntryRawRows = extractRows grabServiceEntries as pageStrings
+  let systemEntryRawRows = extractRows grabSystemEntries as pageStrings
+  let serviceEntries = concatStrings $ recolorRow $ sortRowsByLink $ map (uncurry addSystemColumn) serviceEntryRawRows
+  let systemEntries =  concatStrings $ recolorRow $ sortRowsByLink $ map snd systemEntryRawRows
   let inter = sub baseHTML sysRegex ("$1" ++ systemEntries ++ "$3")
   let subHTML =  addSystemHeader $ sub inter serviceRegex ("$1" ++ serviceEntries ++ "$3")
   return subHTML
