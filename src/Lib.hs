@@ -78,7 +78,7 @@ getLink :: Address -> String
 getLink (Address link _) = link
 
 relink :: Address -> String -> String
-relink (Address a h) page = sub page "href='(.*?)'" ("href='host/" ++ h ++ "/$1'")
+relink (Address a h) page = sub page ("href='(/host/"++ h ++"/)?(.*?)'") ("href='/host/" ++ h ++ "/$2'")
 
 -- relinkActions :: Address -> String -> String
 -- relinkActions (Address a h) page = sub page "action=([^<]*)" ("action=" ++ a ++"/$1")
@@ -146,7 +146,11 @@ matchGroup :: String -> String -> String
 matchGroup regex text  = head groups where
   (start,match,end,groups) = text =~ regex :: (String, String, String, [String])
 
-allMatches :: String -> String -> [String]
+type Rgx = String
+type Target = String
+type Match = String
+
+allMatches :: Rgx -> Target -> [Match]
 allMatches _ "" = []
 allMatches regex text
   | match == "" = []
@@ -155,10 +159,16 @@ allMatches regex text
     (start,match,end,groups) = text =~ regex :: (String, String, String, [String])
 
 addSystemColumn :: Address -> String -> String
-addSystemColumn (Address _ host) tr = sub tr "</td></tr>" ("</td><td align='right' >" ++ host ++"</td></tr>")
+addSystemColumn (Address _ host) tr = sub tr "</td></tr>" ("</td><td align='right' ><a href='host/"++host++"'>" ++ host ++"</a></td></tr>")
 
-addSystemHeader :: String -> String
+addSystemHeader :: Page -> Page
 addSystemHeader page = sub page "(<tr>.*?Process.*?</th>)</tr>" "$1<th align='right'>Host</th></tr>"
+
+addUptimeHeader :: Page -> Page
+addUptimeHeader page = sub page "(<tr>.*?System.*?</th>)</tr>" "$1<th align='right'>Uptime</th></tr>"
+
+removeUptimeMessage :: Page -> Page
+removeUptimeMessage page = sub page "<p align='center'.*?Monit is .*?</p>" ""
 
 rows = "<tr.*?>.*?</tr>"
 linkDest = "<a.*?>(.*?)</a>"
@@ -183,16 +193,30 @@ appendEach (a:as) (b:bs) = map (\x -> (a,x)) b : appendEach as bs
 onSnd :: (a -> b) -> ((c,a) -> (c,b))
 onSnd f (c,a) = (c, f a)
 
-extractRows :: (String -> [String]) -> [Address] -> [String] -> Rows
-extractRows entryExtractor as pages = Rows (concat $ appendEach as $ map entryExtractor pages)
+type Page = String
+type Row = String
 
-data Rows = Rows [(Address, String)] deriving Show
+extractRows :: (Page -> [Row]) -> [Address] -> [Page] -> Rows
+extractRows entryExtractor as pages = Rows (concat $ appendEach (zip as pages) $ map entryExtractor pages)
 
-mapRow :: (String -> String) -> Rows -> Rows
+data Rows = Rows [((Address,Page), Row)] deriving Show
+
+mapRow :: (Row -> Row) -> Rows -> Rows
 mapRow f (Rows l)= Rows $ map (onSnd f) l
 
-mapRowAndAddress :: (Address -> String -> String) -> Rows -> Rows
-mapRowAndAddress f (Rows l)= Rows (mapR (uncurry f) l) where
+type RowTransformer = (((Address,Page),Row) -> Row)
+
+allMeta :: (Address -> Page -> Row -> Row) -> RowTransformer
+allMeta f ((a,p),r) = f a p r
+
+addressMeta :: (Address -> Row -> Row) -> RowTransformer
+addressMeta f ((a,_),r) = f a r
+
+pageMeta :: (Page -> Row -> Row) -> RowTransformer
+pageMeta f ((_,p),r) = f p r
+
+mapMeta :: (((Address,Page),Row) -> Row) -> Rows -> Rows
+mapMeta f (Rows l)= Rows (mapR f l) where
   mapR _ [] = []
   mapR f (t@(a,s) : ls) = (a, f t) : mapR f ls
 
@@ -201,6 +225,10 @@ mapRows f (Rows l) = Rows $ zip (map fst l) (f $ map snd l)
 
 asTable :: Rows -> String
 asTable (Rows l) = concatStrings $ map snd l
+
+addUptime :: Page -> Row -> Row
+addUptime page row = sub row "</td></tr>" ("</td><td align='right'>"++ uptimeStr ++"</td></tr>") where
+  uptimeStr = matchGroup "<i>uptime, (.*?)</i>" page
 
 insertToHtml :: String -> [(String,String)] -> String
 insertToHtml page [] = page
@@ -213,12 +241,12 @@ createWebPage as = do
   let baseHTML = head pageStrings
   let serviceEntryRawRows = extractRows grabServiceEntries as pageStrings
   let systemEntryRawRows = extractRows grabSystemEntries as pageStrings
-  let serviceEntries = asTable $ mapRows recolorRow $ mapRows sortRowsByLink $ mapRowAndAddress addSystemColumn serviceEntryRawRows
-  let systemEntries =  asTable $ mapRows recolorRow $ mapRows sortRowsByLink systemEntryRawRows
+  let serviceEntries = asTable $ mapRows recolorRow $ mapRows sortRowsByLink $ mapMeta (addressMeta addSystemColumn) serviceEntryRawRows
+  let systemEntries =  asTable $ mapRows recolorRow $ mapRows sortRowsByLink $ mapMeta (pageMeta addUptime) systemEntryRawRows
   let htmlWithRows = insertToHtml baseHTML
         [(sysRegex, systemEntries),
           (serviceRegex, serviceEntries)]
-  let finalHTML = addSystemHeader htmlWithRows
+  let finalHTML = removeUptimeMessage $ addUptimeHeader $ addSystemHeader htmlWithRows
   return finalHTML
 
 findByHost :: String -> [Address] -> Address
@@ -243,7 +271,7 @@ snapToPage page = fmap read (return $ fromJust page) >>= Snap.writeBS
 hostroute :: [Address] -> Snap.Snap ()
 hostroute as  = do
   (address, link, dest) <- determineAddress as
-  page <- liftIO (getA (getLink address ++ "/" ++ dest))
+  page <- liftIO $ (fmap $ fmap $ relink address)(getA (getLink address ++ "/" ++ dest))
   snapToPage page
 
 hostpostroute :: [Address] -> Snap.Snap ()
