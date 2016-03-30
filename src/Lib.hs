@@ -22,6 +22,7 @@ import           GHC.Generics
 import           Network.Wreq
 
 import           Data.String.Utils
+import           Debug.Trace
 import           Network.Socket
 import qualified Snap
 import           System.Environment
@@ -136,9 +137,10 @@ sub text pat replaceStr = subMatch text t pat replaceStr where
 
 subMatch :: String -> (String, String, String, [String]) -> String -> String -> String
 subMatch text (_, "",_,[]) _ _ = text
-subMatch text (start,match,end,groups) pat replaceStr = start ++ replaceval ++ sub end pat replaceStr where
+subMatch text (start,match,end,groups) pat replaceStr = start ++ cleanedReplace ++ sub end pat replaceStr where
   replacements = replacementFunctions 1 groups
-  replaceval = iterApply replacements replaceStr
+  replaceval =  iterApply replacements replaceStr
+  cleanedReplace = sub replaceval "[$][0-9]" ""
 
 matchGroup :: String -> String -> String
 matchGroup regex text  = head groups where
@@ -170,8 +172,8 @@ sortRowsByLink =  sortOn (matchGroup linkDest)
 recolorRow :: [String] -> [String]
 recolorRow = recolor True where
   recolor _ [] = []
-  recolor True (r : rows) = sub r "<tr(.*?)(class='.*?')?(.*?)>" "<tr$1 class='stripe' $3>" : recolor False rows
-  recolor False (r : rows)= sub r "<tr([^>]*?)class='.*?'(.*?)>" "<tr$1$3>" : recolor True rows
+  recolor True (r : rows) = sub r "<tr([^>]*?)(class='[^>]*?')?([^>]*?)>" "<tr$1 class='stripe' $3>" : recolor False rows
+  recolor False (r : rows)= sub r "<tr([^>]*?)class='[^>]*?'([^>]*?)>" "<tr$1$3>" : recolor True rows
 
 appendEach :: [a] -> [[b]] -> [[(a,b)]]
 appendEach _ [] = []
@@ -184,7 +186,7 @@ onSnd f (c,a) = (c, f a)
 extractRows :: (String -> [String]) -> [Address] -> [String] -> Rows
 extractRows entryExtractor as pages = Rows (concat $ appendEach as $ map entryExtractor pages)
 
-data Rows = Rows [(Address, String)]
+data Rows = Rows [(Address, String)] deriving Show
 
 mapRow :: (String -> String) -> Rows -> Rows
 mapRow f (Rows l)= Rows $ map (onSnd f) l
@@ -288,7 +290,7 @@ someFunc = do
   let Just config = decode $ Utf8.fromString configString :: Maybe Config
   addressAndHandles <- toAddresses config
   installHandler keyboardSignal (Catch (handler tid (snd addressAndHandles))) Nothing
-  threadDelay 5000000
+  threadDelay 1000000
   putStrLn "Ready"
   Snap.quickHttpServe $ server (fst addressAndHandles)
   return ()
