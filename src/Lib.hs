@@ -170,16 +170,39 @@ sortRowsByLink =  sortOn (matchGroup linkDest)
 recolorRow :: [String] -> [String]
 recolorRow = recolor True where
   recolor _ [] = []
-  recolor True (r : rows) = sub r "<tr(.*?)class='.*?'(.*?)>" "<tr$1class='stripe'$2>" : recolor False rows
-  recolor False (r : rows)= sub r "<tr(.*?)class='.*?'(.*?)>" "<tr$1$2>" : recolor True rows
+  recolor True (r : rows) = sub r "<tr(.*?)(class='.*?')?(.*?)>" "<tr$1 class='stripe' $3>" : recolor False rows
+  recolor False (r : rows)= sub r "<tr([^>]*?)class='.*?'(.*?)>" "<tr$1$3>" : recolor True rows
 
 appendEach :: [a] -> [[b]] -> [[(a,b)]]
 appendEach _ [] = []
 appendEach [] _ = []
 appendEach (a:as) (b:bs) = map (\x -> (a,x)) b : appendEach as bs
 
-extractRows :: (String -> [String]) -> [Address] -> [String] -> [(Address, String)]
-extractRows entryExtractor as pages = concat $ appendEach as $ map entryExtractor pages
+onSnd :: (a -> b) -> ((c,a) -> (c,b))
+onSnd f (c,a) = (c, f a)
+
+extractRows :: (String -> [String]) -> [Address] -> [String] -> Rows
+extractRows entryExtractor as pages = Rows (concat $ appendEach as $ map entryExtractor pages)
+
+data Rows = Rows [(Address, String)]
+
+mapRow :: (String -> String) -> Rows -> Rows
+mapRow f (Rows l)= Rows $ map (onSnd f) l
+
+mapRowAndAddress :: (Address -> String -> String) -> Rows -> Rows
+mapRowAndAddress f (Rows l)= Rows (mapR (uncurry f) l) where
+  mapR _ [] = []
+  mapR f (t@(a,s) : ls) = (a, f t) : mapR f ls
+
+mapRows :: ([String] -> [String]) -> Rows -> Rows
+mapRows f (Rows l) = Rows $ zip (map fst l) (f $ map snd l)
+
+asTable :: Rows -> String
+asTable (Rows l) = concatStrings $ map snd l
+
+insertToHtml :: String -> [(String,String)] -> String
+insertToHtml page [] = page
+insertToHtml page ((regex,insert) : regexes) = insertToHtml (sub page regex ("$1" ++ insert ++ "$3")) regexes
 
 createWebPage :: [Address] -> IO String
 createWebPage as = do
@@ -188,11 +211,13 @@ createWebPage as = do
   let baseHTML = head pageStrings
   let serviceEntryRawRows = extractRows grabServiceEntries as pageStrings
   let systemEntryRawRows = extractRows grabSystemEntries as pageStrings
-  let serviceEntries = concatStrings $ recolorRow $ sortRowsByLink $ map (uncurry addSystemColumn) serviceEntryRawRows
-  let systemEntries =  concatStrings $ recolorRow $ sortRowsByLink $ map snd systemEntryRawRows
-  let inter = sub baseHTML sysRegex ("$1" ++ systemEntries ++ "$3")
-  let subHTML =  addSystemHeader $ sub inter serviceRegex ("$1" ++ serviceEntries ++ "$3")
-  return subHTML
+  let serviceEntries = asTable $ mapRows recolorRow $ mapRows sortRowsByLink $ mapRowAndAddress addSystemColumn serviceEntryRawRows
+  let systemEntries =  asTable $ mapRows recolorRow $ mapRows sortRowsByLink systemEntryRawRows
+  let htmlWithRows = insertToHtml baseHTML
+        [(sysRegex, systemEntries),
+          (serviceRegex, serviceEntries)]
+  let finalHTML = addSystemHeader htmlWithRows
+  return finalHTML
 
 findByHost :: String -> [Address] -> Address
 findByHost h [] = error $ "No host " ++ show h
