@@ -62,6 +62,7 @@ unsafeGetA link = do
   let responseString =  show $ fromMaybe "" (rsp ^? responseBody)
   return responseString
 
+getA :: String -> IO (Maybe String)
 getA link = E.catch (Just <$> unsafeGetA link) ((\e -> return Nothing) :: E.SomeException -> IO (Maybe String))
 
 getPlain :: Address -> IO (Maybe String)

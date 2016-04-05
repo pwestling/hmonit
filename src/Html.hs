@@ -95,8 +95,8 @@ addUptime :: Page -> Row -> Row
 addUptime page row = sub (Rgx "</td></tr>") row (Replacement $ "</td><td align='right'>"++ uptimeStr ++"</td></tr>") where
   uptimeStr = matchGroup (Rgx "<i>uptime, (.*?)</i>") page
 
-fixHomeLink :: Page -> String -> String
-fixHomeLink root page = sub (Rgx "<a href='.*?'>Home</a>") page (Replacement $ "<a href='"++ root ++ "'>Home</a>")
+fixHomeLink :: String -> Page -> String
+fixHomeLink root page = sub (Rgx "<a href='.*?'>Home</a>") page (Replacement $ "<a href='http://"++ root ++ "'>Home</a>")
 
 insertToHtml :: String -> [(Rgx,String)] -> String
 insertToHtml page [] = page

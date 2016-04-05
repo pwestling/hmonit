@@ -46,7 +46,7 @@ createWebPage root as serviceFilter = do
   let htmlWithRows = insertToHtml baseHTML
         [(sysRegex, systemEntries),
           (serviceRegex, serviceEntries)]
-  let finalHTML = removeUptimeMessage $ addUptimeHeader $ addSystemHeader htmlWithRows
+  let finalHTML = fixHomeLink root $ removeUptimeMessage $ addUptimeHeader $ addSystemHeader htmlWithRows
   return finalHTML
 
 findByHost :: String -> [Address] -> Address
@@ -71,10 +71,10 @@ snapToPage page = fmap read (return $ fromJust page) >>= Snap.writeBS
 hostroute :: String -> [Address] -> Snap.Snap ()
 hostroute root as  = do
   (address, link, dest) <- determineAddress as
-  rawPage <- liftIO $ getA $ getLink address ++ "/" ++ dest
-  let adjustPage =  relink root address
-  let page = adjustPage page
-  Snap.writeBS $ C.pack page
+  rawPage <- liftIO $ getA (getLink address ++ "/" ++ dest)
+  let adjustPage = fixHomeLink root . relink root address
+  let page = fmap adjustPage rawPage
+  snapToPage page
 
 hostpostroute :: [Address] -> Snap.Snap ()
 hostpostroute as  = do
