@@ -19,12 +19,12 @@ Then open `localhost:8000` in your browser
     {
     "ssh" : {
         "hosts" : [
-             {"host" : "om-jobs02",       "remoteport" : 12812},
-             {"host" : "om-importers02",  "remoteport" : 12812},
-             {"host" : "om-fppe01",       "remoteport" : 12812},
-             {"host" : "om-fppe02",       "remoteport" : 12812},
-             {"host" : "om-jobs",         "remoteport" : 12812},
-             {"host" : "om-abs03" ,       "remoteport" : 12812}],
+             {"host" : "service-host02",    "remoteport" : 12812},
+             {"host" : "executor-host02",   "remoteport" : 12812},
+             {"host" : "service-host01",    "remoteport" : 12812},
+             {"host" : "executor-host02",   "remoteport" : 12812},
+             {"host" : "misc-host",         "remoteport" : 12812},
+             {"host" : "misc-host03" ,      "remoteport" : 12812}],
         "username" : "pwestling"
       }
     }
