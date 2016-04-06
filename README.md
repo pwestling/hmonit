@@ -8,10 +8,10 @@ git clone git@github.com:pwestling/hmonit.git
 cd hmonit
 stack setup
 stack build
-stack exec hmonit-exe <config file>
+stack exec hmonit-exe <host-name> <port> <config file>
 ```
 
-Then open `localhost:8000` in your browser
+Then open `<hostname>:<port>` in your browser
 
 
 # CONFIG FORMAT
