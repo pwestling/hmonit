@@ -39,7 +39,7 @@ import           Util
 createWebPage :: String -> [Address] -> Maybe Rgx -> IO String
 createWebPage root as serviceFilter = do
   pageHTMLSWithErrors <- mapM (getRelinked root) as
-  let pageStrings = catMaybes pageHTMLSWithErrors
+  let pageStrings = pageHTMLSWithErrors
   let baseHTML = headNote "Every page returned an error" pageStrings
   let serviceEntryRawRows = filterRow (maybeMatch serviceFilter) $ extractRows grabServiceEntries as pageStrings
   let systemEntryRawRows = extractRows grabSystemEntries as pageStrings

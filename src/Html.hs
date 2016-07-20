@@ -11,10 +11,10 @@ import           Util
 relink :: String -> Address -> String -> String
 relink root (Address a h) page = sub  (Rgx $ "href='(http://"++root++"/host/"++ h ++"/)?(.*?)'") page (Replacement $ "href='http://"++root++"/host/" ++ h ++ "/$2'")
 
-getRelinked :: String -> Address -> IO (Maybe String)
+getRelinked :: String -> Address -> IO String
 getRelinked root a@(Address link host) = do
   page <- getA link
-  return $ relink root a <$> page
+  return $ maybe "" (relink root a) page
 
 sysRegex :: Rgx
 sysRegex = Rgx "(<tr>.*?System.*?</tr>)(.*?)(</table>)"
