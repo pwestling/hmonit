@@ -24,6 +24,8 @@ import           System.IO
 import           System.Posix.Signals
 import           System.Process
 
+import           Safe                      as X (headMay, headNote, initMay,
+                                                 tailMay)
 
 import qualified Data.ByteString.Char8     as C
 import qualified Data.ByteString.Lazy.UTF8 as Utf8
@@ -38,7 +40,7 @@ createWebPage :: String -> [Address] -> Maybe Rgx -> IO String
 createWebPage root as serviceFilter = do
   pageHTMLSWithErrors <- mapM (getRelinked root) as
   let pageStrings = catMaybes pageHTMLSWithErrors
-  let baseHTML = head pageStrings
+  let baseHTML = headNote "Every page returned an error" pageStrings
   let serviceEntryRawRows = filterRow (maybeMatch serviceFilter) $ extractRows grabServiceEntries as pageStrings
   let systemEntryRawRows = extractRows grabSystemEntries as pageStrings
   let serviceEntries = asTable $ mapRows recolorRow $ mapRows sortRowsByLink $ mapMeta (addressMeta addSystemColumn) serviceEntryRawRows
@@ -108,9 +110,10 @@ someFunc :: IO ()
 someFunc = do
   tid <- myThreadId
   args <- getArgs
-  let bindAddr = head args
-  let port = (read $ secondEl args) :: Int
-  configString <- readFile $ thirdEl args
+  let check = if length args /= 3 then error "Required arguments are bindAddr, port, configJson" else ()
+  let bindAddr = headNote "Please supply the correct args: [bindAddr, port, configJson]" args
+  let port = (read $ fromMaybe "8000" (secondEl args)) :: Int
+  configString <- readFile $ fromMaybe "" (thirdEl args)
   let Just config = decode $ Utf8.fromString configString :: Maybe Config
   addressAndHandles <- toAddresses config
   installHandler keyboardSignal (Catch (handler tid (snd addressAndHandles))) Nothing

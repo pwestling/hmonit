@@ -1,10 +1,12 @@
 module Html where
 
 import           Data.List
+import           Data.Maybe
 import           Network
 import           Regex
 import           Types
 import           Util
+
 
 relink :: String -> Address -> String -> String
 relink root (Address a h) page = sub  (Rgx $ "href='(http://"++root++"/host/"++ h ++"/)?(.*?)'") page (Replacement $ "href='http://"++root++"/host/" ++ h ++ "/$2'")
@@ -20,7 +22,7 @@ serviceRegex :: Rgx
 serviceRegex = Rgx "(<tr>.*?Process.*?</tr>)(.*?)(</table>)"
 
 grabEntries :: Rgx -> String -> [String]
-grabEntries regex html = asRows $ secondEl (matchGroups regex html)
+grabEntries regex html = maybe [] asRows (secondEl (matchGroups regex html))
 
 grabSystemEntries :: String -> [String]
 grabSystemEntries = grabEntries sysRegex
@@ -92,8 +94,8 @@ asTable :: Rows -> String
 asTable (Rows l) = concatStrings $ map snd l
 
 addUptime :: Page -> Row -> Row
-addUptime page row = sub (Rgx "</td></tr>") row (Replacement $ "</td><td align='right'>"++ uptimeStr ++"</td></tr>") where
-  uptimeStr = matchGroup (Rgx "<i>uptime, (.*?)</i>") page
+addUptime page row = sub (Rgx "</td></tr>") row (Replacement $ "</td><td align='right'>"++ uptimeStr ++ "</td></tr>") where
+  uptimeStr = fromMaybe "" $ matchGroup (Rgx "<i>uptime, (.*?)</i>") page
 
 fixHomeLink :: String -> Page -> String
 fixHomeLink root page = sub (Rgx "<a href='.*?'>Home</a>") page (Replacement $ "<a href='http://"++ root ++ "'>Home</a>")

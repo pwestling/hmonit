@@ -4,6 +4,9 @@ module Regex where
   import           Text.Regex.PCRE
   import           Util
 
+  import           Safe                      as X (headMay, headNote, initMay,
+                                                   tailMay)
+
 
   newtype Rgx = Rgx String
   newtype Replacement = Replacement String
@@ -43,8 +46,8 @@ module Regex where
     replaceval =  iterApply replacements (rplStr replaceStr)
     cleanedReplace = sub (Rgx "[$][0-9]") replaceval  (Replacement "")
 
-  matchGroup :: Rgx -> Target -> String
-  matchGroup regex text = head $ matchGroups regex text
+  matchGroup :: Rgx -> Target -> Maybe String
+  matchGroup regex text = headMay $ matchGroups regex text
 
   matchGroups :: Rgx -> Target -> [String]
   matchGroups regex text  = groups where
