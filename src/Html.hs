@@ -22,7 +22,7 @@ serviceRegex :: Rgx
 serviceRegex = Rgx "(<tr>.*?Process.*?</tr>)(.*?)(</table>)"
 
 grabEntries :: Rgx -> String -> [String]
-grabEntries regex html = maybe [] asRows (secondEl (matchGroups regex html))
+grabEntries regex html = maybe [""] asRows (secondEl (matchGroups regex html))
 
 grabSystemEntries :: String -> [String]
 grabSystemEntries = grabEntries sysRegex
