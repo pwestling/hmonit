@@ -61,14 +61,14 @@ determineAddress :: [Address] -> Snap.Snap (Address, String, String)
 determineAddress as = do
   host <- Snap.getParam "host"
   dest <- Snap.getParam "dest"
-  let realhost = C.unpack $ fromJust host
+  let realhost = C.unpack $ fromMaybe "Please specify a host" host
   let realdest = maybe "" C.unpack dest
   let address = findByHost realhost as
   let link = getLink address ++ "/" ++ realdest
   return (address, link, realdest)
 
 snapToPage :: Maybe String -> Snap.Snap ()
-snapToPage page = fmap read (return $ fromJust page) >>= Snap.writeBS
+snapToPage page = fmap read (return $ fromMaybe "Data not found for this page" page) >>= Snap.writeBS
 
 hostroute :: String -> [Address] -> Snap.Snap ()
 hostroute root as  = do
@@ -90,7 +90,7 @@ toproute root as = fmap read (liftIO $ createWebPage root as Nothing) >>= Snap.w
 
 serviceroute root as = do
   service <- Snap.getParam "service"
-  fmap read (liftIO $ createWebPage root as (Just $ Rgx $ C.unpack $ fromJust service)) >>= Snap.writeBS
+  fmap read (liftIO $ createWebPage root as (Just $ Rgx $ C.unpack $ fromMaybe "Data not found for service" service)) >>= Snap.writeBS
 
 server :: String -> [Address] -> Snap.Snap ()
 server root as =  Snap.ifTop (toproute root as)
