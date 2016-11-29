@@ -55,7 +55,7 @@ createWebPage root as serviceFilter = do
         [(sysRegex, systemEntries),
           (serviceRegex, serviceEntries)]
   let finalHTML = fixHomeLink root $ removeUptimeMessage $ addUptimeHeader $ addSystemHeader htmlWithRows
-  return finalHTML
+  return (if finalHTML == "" then "Data Filtered Out" else finalHTML)
 
 findByHost :: String -> [Address] -> Address
 findByHost h [] = error $ "No host " ++ show h
