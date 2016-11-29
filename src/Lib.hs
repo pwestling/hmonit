@@ -39,8 +39,7 @@ import           Regex
 import           Types
 import           Util
 
-pack' :: String -> C.ByteString
-pack' = fromMaybe "" . R.readMaybe
+
 
 createWebPage :: String -> [Address] -> Maybe Rgx -> IO String
 createWebPage root as serviceFilter = do
