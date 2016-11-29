@@ -30,7 +30,7 @@ import           Safe                      as X (headMay, headNote, initMay,
 import qualified Data.ByteString.Char8     as C
 import qualified Data.ByteString.Lazy.UTF8 as Utf8
 import qualified Data.Text                 as T
-import           Data.Text.Encoding        (encodeUtf8)
+import qualified Text.Read                 as R
 
 
 import           Html
@@ -40,7 +40,7 @@ import           Types
 import           Util
 
 pack' :: String -> C.ByteString
-pack' = C.pack
+pack' = fromMaybe "" . R.readMaybe
 
 createWebPage :: String -> [Address] -> Maybe Rgx -> IO String
 createWebPage root as serviceFilter = do

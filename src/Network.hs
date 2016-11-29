@@ -23,6 +23,7 @@ import           System.Process
 
 
 import           Types
+import           Util
 
 import qualified Data.ByteString.Char8     as C
 
@@ -63,7 +64,7 @@ unsafeGetA link = do
   return responseString
 
 getA :: String -> IO (Maybe String)
-getA link = E.catch (Just <$> unsafeGetA link) ((\e -> return Nothing) :: E.SomeException -> IO (Maybe String))
+getA link = E.catch (verify <$> unsafeGetA link) ((\e -> return Nothing) :: E.SomeException -> IO (Maybe String))
 
 getPlain :: Address -> IO (Maybe String)
 getPlain (Address link h) = getA link

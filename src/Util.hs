@@ -1,7 +1,14 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Util where
 
-import           Control.Monad as Ctrl (join)
-import           Safe          as X (headMay, headNote, initMay, tailMay)
+import           Control.Monad         as Ctrl (join)
+import qualified Data.ByteString.Char8 as C
+import           Data.Maybe
+import           Safe                  as X (headMay, headNote, initMay,
+                                             tailMay)
+import qualified Text.Read             as R
+
 
 concatStrings :: [String] -> String
 concatStrings = concat
@@ -23,3 +30,9 @@ appendEach (a:as) (b:bs) = map (\x -> (a,x)) b : appendEach as bs
 
 onSnd :: (a -> b) -> ((c,a) -> (c,b))
 onSnd f (c,a) = (c, f a)
+
+pack' :: String -> C.ByteString
+pack' = fromMaybe "" . R.readMaybe
+
+verify :: String -> Maybe String
+verify = fmap C.unpack . R.readMaybe
