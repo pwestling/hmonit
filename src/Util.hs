@@ -5,9 +5,13 @@ module Util where
 import           Control.Monad         as Ctrl (join)
 import qualified Data.ByteString.Char8 as C
 import           Data.Maybe
+import qualified Data.Text             as T
+import           Data.Text.Encoding    (encodeUtf8)
 import           Safe                  as X (headMay, headNote, initMay,
                                              tailMay)
 import qualified Text.Read             as R
+
+
 
 
 concatStrings :: [String] -> String
@@ -32,7 +36,7 @@ onSnd :: (a -> b) -> ((c,a) -> (c,b))
 onSnd f (c,a) = (c, f a)
 
 pack' :: String -> C.ByteString
-pack' = fromMaybe "Error" . R.readMaybe
+pack' = encodeUtf8 . T.pack
 
 verify :: String -> Maybe String
 verify = fmap C.unpack . R.readMaybe
