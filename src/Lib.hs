@@ -40,7 +40,7 @@ import           Types
 import           Util
 
 pack' :: String -> C.ByteString
-pack' = encodeUtf8 . T.pack
+pack' = C.pack
 
 createWebPage :: String -> [Address] -> Maybe Rgx -> IO String
 createWebPage root as serviceFilter = do
