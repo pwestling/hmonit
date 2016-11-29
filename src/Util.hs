@@ -32,7 +32,7 @@ onSnd :: (a -> b) -> ((c,a) -> (c,b))
 onSnd f (c,a) = (c, f a)
 
 pack' :: String -> C.ByteString
-pack' = fromMaybe "" . R.readMaybe
+pack' = fromMaybe "Error" . R.readMaybe
 
 verify :: String -> Maybe String
 verify = fmap C.unpack . R.readMaybe
