@@ -29,12 +29,18 @@ import           Safe                      as X (headMay, headNote, initMay,
 
 import qualified Data.ByteString.Char8     as C
 import qualified Data.ByteString.Lazy.UTF8 as Utf8
+import qualified Data.Text                 as T
+import           Data.Text.Encoding        (encodeUtf8)
+
 
 import           Html
 import           Network
 import           Regex
 import           Types
 import           Util
+
+pack' :: String -> C.ByteString
+pack' = encodeUtf8 . T.pack
 
 createWebPage :: String -> [Address] -> Maybe Rgx -> IO String
 createWebPage root as serviceFilter = do
@@ -68,7 +74,7 @@ determineAddress as = do
   return (address, link, realdest)
 
 snapToPage :: Maybe String -> Snap.Snap ()
-snapToPage page = fmap C.pack (return $ fromMaybe "Data not found for this page" page) >>= Snap.writeBS
+snapToPage page = fmap pack' (return $ fromMaybe "Data not found for this page" page) >>= Snap.writeBS
 
 hostroute :: String -> [Address] -> Snap.Snap ()
 hostroute root as  = do
@@ -86,11 +92,11 @@ hostpostroute as  = do
   page <- liftIO  (getA link)
   snapToPage page
 
-toproute root as = fmap C.pack (liftIO $ createWebPage root as Nothing) >>= Snap.writeBS
+toproute root as = fmap pack' (liftIO $ createWebPage root as Nothing) >>= Snap.writeBS
 
 serviceroute root as = do
   service <- Snap.getParam "service"
-  fmap C.pack (liftIO $ createWebPage root as (Just $ Rgx $ C.unpack $ fromMaybe "Please set service param" service)) >>= Snap.writeBS
+  fmap pack' (liftIO $ createWebPage root as (Just $ Rgx $ C.unpack $ fromMaybe "Please set service param" service)) >>= Snap.writeBS
 
 server :: String -> [Address] -> Snap.Snap ()
 server root as =  Snap.ifTop (toproute root as)
