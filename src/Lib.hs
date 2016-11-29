@@ -90,7 +90,7 @@ toproute root as = fmap read (liftIO $ createWebPage root as Nothing) >>= Snap.w
 
 serviceroute root as = do
   service <- Snap.getParam "service"
-  fmap read (liftIO $ createWebPage root as (Just $ Rgx $ C.unpack $ fromMaybe "Data not found for service" service)) >>= Snap.writeBS
+  fmap read (liftIO $ createWebPage root as (Just $ Rgx $ C.unpack $ fromMaybe "Please set service param" service)) >>= Snap.writeBS
 
 server :: String -> [Address] -> Snap.Snap ()
 server root as =  Snap.ifTop (toproute root as)
