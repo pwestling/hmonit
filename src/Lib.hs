@@ -32,6 +32,8 @@ import qualified Data.ByteString.Lazy.UTF8 as Utf8
 import qualified Data.Text                 as T
 import qualified Text.Read                 as R
 
+import Debug.Trace (traceShow)
+
 
 import           Html
 import           Network
@@ -43,8 +45,11 @@ import           Util
 
 createWebPage :: String -> [Address] -> Maybe Rgx -> IO String
 createWebPage root as serviceFilter = do
-  pageHTMLSWithErrors <- mapM (getRelinked root) as
-  let pageStrings = pageHTMLSWithErrors
+  pageHTMLSWithErrors <-  mapM (getRelinked root) as
+  let _ = traceShow (filter (isNothing . fst) $ zip pageHTMLSWithErrors as) Nothing
+  let validPagesAndAddress = filter (isJust . fst) $ zip pageHTMLSWithErrors as
+  let pageStrings = map (fromJust. fst) validPagesAndAddress
+  let addresses = map snd validPagesAndAddress
   let baseHTML = headNote "Every page returned an error" pageStrings
   let serviceEntryRawRows = filterRow (maybeMatch serviceFilter) $ extractRows grabServiceEntries as pageStrings
   let systemEntryRawRows = extractRows grabSystemEntries as pageStrings

@@ -11,10 +11,10 @@ import           Util
 relink :: String -> Address -> String -> String
 relink root (Address a h) page = sub  (Rgx $ "href='(http://"++root++"/host/"++ h ++"/)?(.*?)'") page (Replacement $ "href='http://"++root++"/host/" ++ h ++ "/$2'")
 
-getRelinked :: String -> Address -> IO String
+getRelinked :: String -> Address -> IO (Maybe String)
 getRelinked root a@(Address link host) = do
   page <- getA link
-  return $ maybe "" (relink root a) page
+  return $ relink root a <$> page
 
 sysRegex :: Rgx
 sysRegex = Rgx "(<tr>.*?System.*?</tr>)(.*?)(</table>)"
@@ -22,7 +22,7 @@ serviceRegex :: Rgx
 serviceRegex = Rgx "(<tr>.*?Process.*?</tr>)(.*?)(</table>)"
 
 grabEntries :: Rgx -> String -> [String]
-grabEntries regex html = maybe [""] asRows (secondEl (matchGroups regex html))
+grabEntries regex html = maybe ["Unable To Parse Entries"] asRows (secondEl (matchGroups regex html))
 
 grabSystemEntries :: String -> [String]
 grabSystemEntries = grabEntries sysRegex
