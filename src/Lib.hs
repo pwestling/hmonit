@@ -32,7 +32,7 @@ import qualified Data.ByteString.Lazy.UTF8 as Utf8
 import qualified Data.Text                 as T
 import qualified Text.Read                 as R
 
-import Debug.Trace (traceShow)
+import           Debug.Trace               (traceShow)
 
 
 import           Html
@@ -51,8 +51,8 @@ createWebPage root as serviceFilter = do
   let pageStrings = map (fromJust. fst) validPagesAndAddress
   let addresses = map snd validPagesAndAddress
   let baseHTML = headNote "Every page returned an error" pageStrings
-  let serviceEntryRawRows = filterRow (maybeMatch serviceFilter) $ extractRows grabServiceEntries as pageStrings
-  let systemEntryRawRows = extractRows grabSystemEntries as pageStrings
+  let serviceEntryRawRows = filterRow (maybeMatch serviceFilter) $ extractRows grabServiceEntries addresses pageStrings
+  let systemEntryRawRows = extractRows grabSystemEntries addresses pageStrings
   let serviceEntries = asTable $ mapRows recolorRow $ mapRows sortRowsByLink $ mapMeta (addressMeta addSystemColumn) serviceEntryRawRows
   let systemEntries =  asTable $ mapRows recolorRow $ mapRows sortRowsByLink $ mapMeta (pageMeta addUptime) systemEntryRawRows
   let htmlWithRows = insertToHtml baseHTML
