@@ -30,7 +30,7 @@ import qualified Data.ByteString.Char8     as C
 import qualified Data.ByteString.Lazy.UTF8 as Utf8
 
 sshTunnelCmd :: Integer -> SSHHost -> String -> String
-sshTunnelCmd localport (SSHHost host remoteport) username = "ssh -M -N -L " ++ show localport ++ ":localhost:" ++ show remoteport ++ " " ++ username ++ "@" ++ host
+sshTunnelCmd localport (SSHHost host remoteport) username = "ssh -M -N -L -F ~" ++ username ++"/.ssh/config "  ++ show localport ++ ":localhost:" ++ show remoteport ++ " " ++ username ++ "@" ++ host
 
 sshAddress :: Integer -> SSHHost -> Address
 sshAddress localport SSHHost{host} = Address ("http://127.0.0.1:" ++ show localport) host
