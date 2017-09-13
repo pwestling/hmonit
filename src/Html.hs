@@ -63,6 +63,8 @@ extractRows :: (Page -> [Row]) -> [Address] -> [Page] -> Rows
 extractRows entryExtractor as pages = Rows (concat $ appendEach (zip as pages) $ map entryExtractor pages)
 
 data Rows = Rows [((Address,Page), Row)] deriving Show
+len :: Rows -> Integer
+len (Rows l) = length l
 
 mapRow :: (Row -> Row) -> Rows -> Rows
 mapRow f (Rows l)= Rows $ map (onSnd f) l

@@ -52,7 +52,7 @@ createWebPage root as serviceFilter = do
   let addresses = map snd validPagesAndAddress
   let baseHTML = headNote "Every page returned an error" pageStrings
   let serviceEntryRawRows = filterRow (maybeMatch serviceFilter) $ extractRows grabServiceEntries addresses pageStrings
-  print $ length serviceEntryRawRows
+  print $ len serviceEntryRawRows
   let systemEntryRawRows = extractRows grabSystemEntries addresses pageStrings
   let serviceEntries = asTable $ mapRows recolorRow $ mapRows sortRowsByLink $ mapMeta (addressMeta addSystemColumn) serviceEntryRawRows
   let systemEntries =  asTable $ mapRows recolorRow $ mapRows sortRowsByLink $ mapMeta (pageMeta addUptime) systemEntryRawRows
