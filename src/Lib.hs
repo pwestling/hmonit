@@ -46,18 +46,18 @@ import           Util
 createWebPage :: String -> [Address] -> Maybe Rgx -> IO String
 createWebPage root as serviceFilter = do
   pageHTMLSWithErrors <-  mapM (getRelinked root) as
-  putStrLn pageHTMLSWithErrors
+  print pageHTMLSWithErrors
   let _ = traceShow (filter (isNothing . fst) $ zip pageHTMLSWithErrors as) Nothing
   let validPagesAndAddress = filter (isJust . fst) $ zip pageHTMLSWithErrors as
   let pageStrings = map (fromJust. fst) validPagesAndAddress
   let addresses = map snd validPagesAndAddress
-  putStrLn validPagesAndAddress
+  print validPagesAndAddress
   let baseHTML = headNote "Every page returned an error" pageStrings
   let serviceEntryRawRows = filterRow (maybeMatch serviceFilter) $ extractRows grabServiceEntries addresses pageStrings
-  putStrLn serviceEntryRawRows
+  print serviceEntryRawRows
   let systemEntryRawRows = extractRows grabSystemEntries addresses pageStrings
   let serviceEntries = asTable $ mapRows recolorRow $ mapRows sortRowsByLink $ mapMeta (addressMeta addSystemColumn) serviceEntryRawRows
-  putStrLn serviceEntries
+  print serviceEntries
   let systemEntries =  asTable $ mapRows recolorRow $ mapRows sortRowsByLink $ mapMeta (pageMeta addUptime) systemEntryRawRows
   let htmlWithRows = insertToHtml baseHTML
         [(sysRegex, systemEntries),
